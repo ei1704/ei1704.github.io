@@ -1,14 +1,17 @@
 #-*-coding:euc-jp-*-
 
+import threading
 import mcpi.minecraft as minecraft
 import tkinter as tk
 from tkinter import *
+from tkinter import ttk
 from tkinter import messagebox
 from PIL import Image,ImageTk
 from time import sleep
 
 li=[0 for i in range(101)]
 mp=[[0 for i in range(3)]for i in range(8)]
+direcimg=[0 for i in range(4)]
 cnt=1
 item_id=0
 mc = 0
@@ -21,12 +24,11 @@ xSize=0
 ySize=0
 stage=[[0 for i in range(100)]for i in range(100)]
 
-
 def readLevel(filename):
     global mc
     if mc==0:
         messagebox.showerror("Alert","マインクラフトが接続されていません")
-        return
+    
     try:
         file=open(str("./levels/")+filename)
         global xSize,ySize,stage
@@ -52,13 +54,22 @@ def readLevel(filename):
 
         xSide=xSize/2
         ySide=ySize/2
+        #カメラを空中に
         mc.player.setPos(xSide,10,ySide)
 
+        #床
         mc.setBlocks(-1,0,-1,xSize,0,ySize,35,0)
+        #壁
         mc.setBlocks(-1,1,-1,-1,1,ySize,35,15)
         mc.setBlocks(-1,1,-1,xSize,1,-1,35,15)
         mc.setBlocks(xSize,1,ySize,-1,1,ySize,35,15)
         mc.setBlocks(xSize,1,ySize,xSize,1,-1,35,15)
+
+        #東西南北の色ブロック
+        mc.setBlock(xSize/2,1,-1,35,4)
+        mc.setBlock(xSize/2,1,ySize,35,11)
+        mc.setBlock(-1,1,ySize/2,35,12)
+        mc.setBlock(xSize,1,ySize/2,35,10)
 
         #xSide-=1
         #ySide-=1
@@ -70,13 +81,15 @@ def readLevel(filename):
                     mc.setBlock(x,1,y-1,35,8)
                 elif stage[y][x]==2:
                     mc.setBlock(x,0,y-1,35,14)
-                    mc.setBlocks(x,1,y-1,x,2,y-1,85,0)
+                    #mc.setBlocks(x,1,y-1,x,2,y-1,85,0)
+                    mc.setBlock(x,1,y-1,67,2)
                     sx=x
                     sy=y-1
                 elif stage[y][x]==3:
                     mc.setBlock(x,0,y-1,35,1)
                     gx=x
                     gy=y-1
+        
 
     except Exception as e:
         print(e)
@@ -91,6 +104,7 @@ class Application(tk.Frame):
 
 class blocks():
     def __init__(self,filename,num,x,y,tag,kind):
+        global canvas
         self.num=num
         self.defFname=filename#元のファイル名
         if num>0:
@@ -119,6 +133,7 @@ class blocks():
         self.pressed_x = self.pressed_y = 0
 
         ID=canvas.create_image(x,y,image=self.img,tags=tag)
+        canvas.tag_raise(self)
         print(ID)
         self.setid(ID)
 
@@ -137,6 +152,7 @@ class blocks():
 
         x = event.x
         y = event.y
+        #右上判定
         if self.x+20<x and x<self.x+50 and self.y-50<y and y<self.y-30:
             if self.num>0:
                 self.num=(self.num+1)%5
@@ -274,7 +290,7 @@ def on_closing():
         root.destroy()
 
 def start():
-    global mp,mc,sx,sy,gx,gy
+    global mp,mc,sx,sy,gx,gy,direcimg,canvasB,imgID
     if mc==0:
         messagebox.showerror("Alert","マインクラフトが接続されていません")
         print('マインクラフトが接続されていません')
@@ -288,10 +304,10 @@ def start():
             print(str(i)+" "+str(j))
             sclipt[c]=mp[j][i]
             c+=1
-
-
+    canvasB.itemconfig(imgID,image=direcimg[0])
     x=sx
     z=sy
+    stepdirec=2
     #mc.setBlock(x,0,z,35,14)
     for i in range(3):
         for j in range(8):
@@ -309,9 +325,11 @@ def start():
                     z+=1
                 elif direc=='n':
                     z-=1
+
+                mc.setBlock(x,1,z,67,stepdirec)
                 mc.setBlock(x,0,z,35,14)
                 blockstate=mc.getBlockWithData(x,1,z)
-                mc.setBlocks(x,1,z,x,2,z,85,0)
+                #mc.setBlocks(x,1,z,x,2,z,85,0)
                 sleep(0.5)
 
                 if blockstate.id==35:
@@ -320,41 +338,84 @@ def start():
                     mc.setBlock(x,2,z,0,0)
                     mc.setBlock(x,0,z,35,0)
                     mc.setBlock(sx,0,sy,35,14)
-                    mc.setBlocks(sx,1,sy,sx,2,sy,85,0)
+                    #mc.setBlocks(sx,1,sy,sx,2,sy,85,0)
+                    mc.setBlock(sx,1,sz,67,2)
                     mc.setBlocks(gx,1,gy,gx,2,gy,0,0)
                     mc.setBlock(gx,0,gy,35,1)
+                    canvasB.itemconfig(imgID,image=direcimg[0])
                     return 
                 elif x==gx and z==gy:
                     messagebox.showinfo("Alert","ゴールしました")
                     mc.setBlock(x,0,z,35,0)
                     mc.setBlock(sx,0,sy,35,14)
-                    mc.setBlocks(sx,1,sy,sx,2,sy,85,0)
+                    #mc.setBlocks(sx,1,sy,sx,2,sy,85,0)
+                    mc.setBlock(sx,1,sy,67,2)
                     mc.setBlock(gx,0,gy,35,1)
                     mc.setBlocks(gx,1,gy,gx,2,gy,0,0)
+                    canvasB.itemconfig(imgID,image=direcimg[0])
                     return
           elif mp[j][i].kind==2:
             for s in range(mp[j][i].num):
                 if direc=='n':
                  direc='e'
+                 stepdirec=1
+                 #route(3)
+                 thread=threading.Thread(target=route(3))
+                 thread.daemon=True
+                 thread.start()
+                 #canvasB.itemconfig(imgID,image=direcimg[3])
+                 #canvasB.create_image(1,1,image=direcimg[3],anchor=NW)            
                 elif direc=='e':
                  direc='s'
+                 stepdirec=3
+                 #route(1)
+                 thread=threading.Thread(target=route(1))
+                 thread.daemon=True
+                 thread.start()
+
+                 #canvasB.itemconfig(imgID,image=direcimg[1])
+                 #canvasB.create_image(1,1,image=direcimg[1],anchor=NW)
                 elif direc=='s':
                  direc='w'
+                 stepdirec=0
+                 #route(2)
+                 thread=threading.Thread(target=route(2))
+
+                 thread.daemon=True
+                 thread.start()
+                 #canvasB.itemconfig(imgID,image=direcimg[2])
+                 #canvasB.create_image(1,1,image=direcimg[2],anchor=NW)
                 elif direc=='w':
                  direc='n'
-                 sleep(0.5)
+                 stepdirec=2
+                 #route(0)
+                 thread=threading.Thread(target=route(0))
 
-    if x!=gx and z!=gy:
+                 thread.daemon=True
+                 thread.start()
+                 #canvasB.itemconfig(imgID,image=direcimg[0])
+                 #canvasB.create_image(1,1,image=direcimg[0],anchor=NW) 
+                mc.setBlock(x,1,z,67,stepdirec)
+                sleep(0.5)
+
+    if x!=gx or z!=gy:
         messagebox.showinfo("Alert","ゴールできませんでした")
         mc.setBlock(x,0,z,35,0)
         mc.setBlocks(x,1,z,x,2,z,0,0)
+        mc.setBlock(sx,1,sy,67,2)
         mc.setBlock(sx,0,sy,35,14)
-        mc.setBlocks(sx,1,sy,sx,2,sy,85,0)
+        #mc.setBlocks(sx,1,sy,sx,2,sy,85,0)
         mc.setBlocks(gx,1,gy,gx,2,gy,0,0)
         mc.setBlock(gx,0,gy,35,1)
 
-
+    #canvasB.create_image(1,1,image=direcimg[0],anchor=NW)
+    canvasB.itemconfig(imgID,image=direcimg[0])
     print("実行完了")
+
+def route(num):
+    global canvasB,imgID,direcimg
+    canvasB.itemconfig(imgID,image=direcimg[num])
+    
 
 def connect():
     global mc
@@ -383,10 +444,45 @@ def reset():
     mc.setBlocks(5,1,5,-5,1,5,35,15)
     mc.setBlocks(5,1,5,5,1,-5,35,15)
 
+    mc.setBlock(0,1,-5,35,4)
+    mc.setBlock(0,1,5,35,11)
+    mc.setBlock(-5,1,0,35,12)
+    mc.setBlock(5,1,0,35,10)
 
     mc.setBlock(x,0,z,35,14)
 
 
+def button_clicked():
+    global v1,subwin
+    subwin.destroy()
+    readLevel(str(v1.get())+'.txt')
+
+
+def cb_selected(event):
+    global v1
+    print('v1=%s'%v1.get())
+    
+
+def applist():
+    global v1,subwin
+
+    subwin=Toplevel()
+    subwin.title("レベル選択")
+    subwin.minsize(300,200)
+
+    frame1 = ttk.Frame(subwin,padding=10)
+    frame1.grid()
+
+    v1=StringVar()
+    cb=ttk.Combobox(frame1,textvariable=v1,font=("Helvetica",30))
+    cb.bind('<<ComboboxSelected>>',cb_selected)
+
+    cb['values']=('level1','level2','level3')
+    cb.set("level1")
+    cb.grid(row=0,column=0)
+
+    button = tk.Button(frame1,text='OK',command=button_clicked,width=15,height=10)
+    button.grid(row=0,column=1)
 
 def main():
 
@@ -398,7 +494,7 @@ def main():
     #mae=blocks('images/mae.png',50,70,"mae")
     #migi=blocks('images/migi.png',50,200,"migi")
     #end=blocks('images/end.png',50,330,"end")
-    global canvas,li,cnt
+    global imgID,canvas,li,cnt,canvasB,direcimg
 
     #readLevel("level1.txt")
 
@@ -406,10 +502,10 @@ def main():
 
     canvas = tk.Canvas(width=400,height=800,bg="white")
 
-    li[cnt]=blocks('images/mae',1,50,70,cnt,1)
-    li[cnt+1]=blocks('images/migi',1,50,200,cnt+1,2)
-    li[cnt+2]=blocks('images/end',0,50,330,cnt+2,3)
-    cnt+=14
+    #li[cnt]=blocks('images/mae',1,50,70,cnt,1)
+    #li[cnt+1]=blocks('images/migi',1,50,200,cnt+1,2)
+    #li[cnt+2]=blocks('images/end',0,50,330,cnt+2,3)
+    #cnt+=14
 
     #root.protocol("WM_DELETE_WINDOW", on_closing)
 
@@ -423,23 +519,68 @@ def main():
     for i in range(1,8):
         canvas.create_line(100,100*i,400,100*i,fill='gray')
 
+    #(150,50)
+    char=1
+    for i in range(1,4):
+        for j in range(8):
+            canvas.create_text(100*i+50,100*j+50,text = char ,font=("",30))
+            char+=1
+
+    cnt+=35
+    
+    li[cnt]=blocks('images/mae',1,50,70,cnt,1)
+    li[cnt+1]=blocks('images/migi',1,50,200,cnt+1,2)
+    li[cnt+2]=blocks('images/end',0,50,330,cnt+2,3)
+
+    #cnt+=24
+    cnt+=3
+
     canvas.place(x=0,y=100)
 
-    Button1 = tk.Button(text=u'スタート',command=start)
-    Button2 = tk.Button(text=u'接続',command=connect)
+    Button1 = tk.Button(text=u'スタート',height=10,width=20,command=start)
+    Button2 = tk.Button(text=u'接続',height=10,width=20,command=connect)
     Button3 = tk.Button(text=u'リセット',command=reset)
     Button4 = tk.Button(text=u'レベル1構築',command=lambda:readLevel("level1.txt"))
     Button5 = tk.Button(text=u'レベル2構築',command=lambda:readLevel("level2.txt"))
     
     Button6 = tk.Button(text=u'レベル3構築',command=lambda:readLevel("level3.txt"))
 
+    createB = tk.Button(text=u'レベル構築' ,width=50,height=10,command=lambda:applist())
 
-    Button1.place(x=600,y=400)
-    Button2.place(x=600,y=450)
-    Button3.place(x=600,y=500)
-    Button4.place(x=600,y=550)
-    Button5.place(x=600,y=600)
-    Button6.place(x=600,y=650)
+    
+    #Button1.place(x=600,y=400)
+    #Button2.place(x=600,y=450)
+    #Button3.place(x=600,y=500)
+    #Button4.place(x=600,y=550)
+    #Button5.place(x=600,y=600)
+    #Button6.place(x=600,y=650)
+
+    Button1.place(x=430,y=100)
+    Button2.place(x=630,y=100)
+    createB.place(x=430,y=300)
+
+    #canvasB=tk.Canvas(width=200,height=200)
+    canvasB=tk.Canvas(width=200,height=400)
+
+    #direcimg=Image.open('images/cent.png')
+    #direcimg=ImageTk.PhotoImage(direcimg)
+
+    direcimg[0]=Image.open('images/up.png')
+    direcimg[1]=Image.open('images/down.png')
+    direcimg[2]=Image.open('images/left.png')
+    direcimg[3]=Image.open('images/right.png')
+
+    direcimg[0]=ImageTk.PhotoImage(direcimg[0])
+    direcimg[1]=ImageTk.PhotoImage(direcimg[1])
+    direcimg[2]=ImageTk.PhotoImage(direcimg[2])
+    direcimg[3]=ImageTk.PhotoImage(direcimg[3])
+
+    canvasB.direcimg=direcimg
+
+    imgID=canvasB.create_image(1,1,image=direcimg[0],anchor=NW,tags=1)
+    print(imgID)
+
+    canvasB.place(x=430,y=500)
 
     #canvas.tag_bind(mae.tag,"<Button-1>",mae.pressed)
     #canvas.tag_bind(migi.tag,"<Button-1>",migi.pressed)
